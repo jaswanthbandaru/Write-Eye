@@ -1,0 +1,345 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Write Eye: AI Content Generator (Hugging Face)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --secondary: #64748b;
+            --background: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --border-radius: 12px;
+            --transition: all 0.3s ease;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--background);
+            color: var(--text);
+            padding: 2rem 0;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 900px;
+        }
+        
+        .app-header {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .app-title {
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .app-subtitle {
+            color: var(--secondary);
+            font-weight: 500;
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            border: none;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            transition: var(--transition);
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+        
+        .card:hover {
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.08);
+            transform: translateY(-5px);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            color: white;
+            border-bottom: none;
+            padding: 1.5rem;
+            border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+        }
+        
+        .card-body {
+            padding: 2rem;
+        }
+        
+        .form-label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+        
+        .form-control, .form-select {
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e2e8f0;
+            background-color: #f8fafc;
+            transition: var(--transition);
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            background-color: white;
+        }
+        
+        .form-control::placeholder {
+            color: #94a3b8;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: var(--transition);
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+            transform: translateY(-2px);
+        }
+        
+        .btn-outline-light {
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        
+        #result {
+            white-space: pre-wrap;
+            max-height: 500px;
+            overflow-y: auto;
+            padding: 1.5rem;
+            background-color: #f8fafc;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        
+        .result-card {
+            transition: var(--transition);
+        }
+        
+        .option-icon {
+            margin-right: 0.5rem;
+            color: var(--primary);
+        }
+        
+        .spinner-border {
+            color: var(--primary) !important;
+            width: 3rem;
+            height: 3rem;
+        }
+        
+        .features-list {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 3rem;
+            flex-wrap: wrap;
+        }
+        
+        .feature-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            max-width: 180px;
+        }
+        
+        .feature-icon {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+        
+        .feature-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .feature-desc {
+            color: var(--secondary);
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .card-body {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="app-header">
+            <h1 class="app-title">Write Eye: AI Content Generator</h1>
+            <p class="app-subtitle">Create high-quality content in seconds with our Hugging Face powered AI</p>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h2 class="mb-0 fs-4 text-center">Create Your Content</h2>
+            </div>
+            <div class="card-body">
+                <form id="generatorForm">
+                    <div class="form-group">
+                        <label for="promptInput" class="form-label">What would you like to write about?</label>
+                        <textarea class="form-control" id="promptInput" rows="3" placeholder="Describe your topic or provide specific details for better results..." required></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 form-group">
+                            <label for="contentType" class="form-label">Content Type</label>
+                            <select class="form-select" id="contentType">
+                                <option value="blog"><i class="fas fa-pencil"></i> Blog Post</option>
+                                <option value="social"><i class="fas fa-share-alt"></i> Social Media</option>
+                                <option value="email"><i class="fas fa-envelope"></i> Email</option>
+                                <option value="product"><i class="fas fa-tag"></i> Product Description</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 form-group">
+                            <label for="contentLength" class="form-label">Length</label>
+                            <select class="form-select" id="contentLength">
+                                <option value="short">Short (~250 words)</option>
+                                <option value="medium" selected>Medium (~500 words)</option>
+                                <option value="long">Long (~1000 words)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary" id="generateBtn">
+                            <i class="fas fa-magic me-2"></i> Generate Content
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card result-card d-none" id="resultCard">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="mb-0 fs-4">Generated Content</h3>
+                <button class="btn btn-sm btn-outline-light" id="copyBtn">
+                    <i class="fas fa-copy me-1"></i> Copy
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="result"></div>
+            </div>
+        </div>
+        
+        <div class="text-center mt-4 mb-5">
+            <div class="spinner-border d-none" role="status" id="loadingSpinner">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+        
+        <div class="features-list">
+            <div class="feature-item">
+                <i class="fas fa-bolt feature-icon"></i>
+                <h3 class="feature-title">Fast Generation</h3>
+                <p class="feature-desc">Get high-quality content in seconds</p>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-robot feature-icon"></i>
+                <h3 class="feature-title">AI Powered</h3>
+                <p class="feature-desc">Using cutting-edge language models</p>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-layer-group feature-icon"></i>
+                <h3 class="feature-title">Multiple Formats</h3>
+                <p class="feature-desc">Blogs, social posts, emails and more</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('generatorForm');
+            const resultCard = document.getElementById('resultCard');
+            const resultDiv = document.getElementById('result');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const copyBtn = document.getElementById('copyBtn');
+            
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const prompt = document.getElementById('promptInput').value;
+                const contentType = document.getElementById('contentType').value;
+                const length = document.getElementById('contentLength').value;
+                
+                // Show loading indicator
+                loadingSpinner.classList.remove('d-none');
+                resultCard.classList.add('d-none');
+                
+                // Send request to backend
+                fetch('/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        content_type: contentType,
+                        length: length
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Hide loading indicator
+                    loadingSpinner.classList.add('d-none');
+                    
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        return;
+                    }
+                    
+                    // Display the result with animation
+                    resultDiv.textContent = data.content;
+                    resultCard.classList.remove('d-none');
+                    resultCard.scrollIntoView({ behavior: 'smooth' });
+                })
+                .catch(error => {
+                    loadingSpinner.classList.add('d-none');
+                    alert('Error: ' + error);
+                });
+            });
+            
+            // Copy button functionality
+            copyBtn.addEventListener('click', function() {
+                const content = resultDiv.textContent;
+                navigator.clipboard.writeText(content)
+                    .then(() => {
+                        const originalHTML = copyBtn.innerHTML;
+                        copyBtn.innerHTML = '<i class="fas fa-check me-1"></i> Copied!';
+                        setTimeout(() => {
+                            copyBtn.innerHTML = originalHTML;
+                        }, 2000);
+                    })
+                    .catch(err => {
+                        alert('Failed to copy: ' + err);
+                    });
+            });
+        });
+    </script>
+</body>
+</html>
+        
