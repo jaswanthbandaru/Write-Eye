@@ -86,12 +86,3 @@ python app.py
 - Create user authentication
 - Add content export options
 
-## 📝 Contributing
-Contributions, issues, and feature requests are welcome! Feel free to check [issues page](https://github.com/jaswanthbandaru/write-eye/issues).
-
-## 📄 License
-[Specify your license here, e.g., MIT]
-
----
-
-*Powered by Mistral AI and Hugging Face* 🤖📝
