@@ -5,10 +5,13 @@ import requests
 # Initialize Flask app
 app = Flask(__name__)
 
-# Hugging Face API configuration
-HF_API_TOKEN = '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'
-API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
-HEADERS = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+# NVIDIA API configuration 
+API_KEY = os.getenv('API_KEY')
+API_URL = "https://integrate.api.nvidia.com/v1/chat/completions"  
+HEADERS = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json"
+}
 
 @app.route('/')
 def index():
@@ -21,27 +24,24 @@ def generate_content():
     content_type = data.get('content_type', 'blog')
     length = data.get('length', 'medium')
     
-    # Length parameters (approximate word counts)
+    # Length parameters
     length_guide = {
-        'short': 'around 100 words',
-        'medium': 'around 300 words',
-        'long': 'around 600 words'
+        'short': 'around 250 words',
+        'medium': 'around 500 words',
+        'long': 'around 1000 words'
     }
     
     # Create system instructions based on content type
     system_instructions = {
-        'blog': f"Write a blog post about the following topic: {prompt}. Keep it {length_guide[length]}.",
-        'social': f"Create social media content about: {prompt}. Keep it {length_guide[length]}.",
-        'email': f"Write a professional email about: {prompt}. Keep it {length_guide[length]}.",
-        'product': f"Write product description copy for: {prompt}. Keep it {length_guide[length]}."
+        'blog': f"Write a well-structured blog post about: {prompt}. Make it engaging and informative, {length_guide[length]}.",
+        'social': f"Create engaging social media content about: {prompt}. Make it catchy and shareable, {length_guide[length]}.",
+        'email': f"Write a professional email about: {prompt}. Keep it clear and actionable, {length_guide[length]}.",
+        'product': f"Write compelling product description copy for: {prompt}. Focus on benefits and features, {length_guide[length]}."
     }
     
-    # Format the prompt for Mistral model 
-    formatted_prompt = f"""<s>[INST] {system_instructions.get(content_type, f"Write content about: {prompt}. Keep it {length_guide[length]}.")} [/INST]"""
-    
     try:
-        # Call the Hugging Face Inference API
-        response = query_huggingface(formatted_prompt)
+        # Call the NVIDIA API
+        response = query_nvidia_api(system_instructions.get(content_type, f"Write content about: {prompt}. Keep it {length_guide[length]}."))
         
         if isinstance(response, dict) and 'error' in response:
             return jsonify({"error": response['error']}), 500
@@ -51,44 +51,67 @@ def generate_content():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-def query_huggingface(prompt):
+def query_nvidia_api(user_message):
     """
-    Query the Hugging Face model API
+    Query the NVIDIA API using the chat completions endpoint
     """
     try:
-        payload = {"inputs": prompt, "parameters": {"max_new_tokens": 1024}}
-        response = requests.post(API_URL, headers=HEADERS, json=payload)
+        payload = {
+            "model": "meta/llama-3.1-405b-instruct",  # Using a supported model
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a helpful AI assistant that creates high-quality content. Always provide complete, well-formatted responses."
+                },
+                {
+                    "role": "user",
+                    "content": user_message
+                }
+            ],
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "max_tokens": 1024
+        }
+        
+        response = requests.post(API_URL, headers=HEADERS, json=payload, timeout=30)
         
         if response.status_code == 200:
             result = response.json()
             # Extract the generated text from the response
-            if isinstance(result, list) and len(result) > 0 and 'generated_text' in result[0]:
-                # Parse out the generated content, removing the prompt
-                generated_text = result[0]['generated_text']
-                # Remove the instruction prompt from the generated text
-                content = generated_text.split('[/INST]')[-1].strip()
+            if 'choices' in result and len(result['choices']) > 0:
+                content = result['choices'][0]['message']['content']
                 return content
-            return str(result)
+            else:
+                return {"error": "No content generated"}
         else:
-            return {"error": f"API request failed with status code: {response.status_code}"}
+            error_msg = f"API request failed with status code: {response.status_code}"
+            try:
+                error_detail = response.json()
+                error_msg += f" - {error_detail}"
+            except:
+                error_msg += f" - {response.text}"
+            return {"error": error_msg}
     
+    except requests.exceptions.Timeout:
+        return {"error": "Request timed out. Please try again."}
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Network error: {str(e)}"}
     except Exception as e:
-        return {"error": f"Error querying Hugging Face API: {str(e)}"}
+        return {"error": f"Error querying NVIDIA API: {str(e)}"}
 
 # Create templates directory and HTML file
 def create_template_files():
     os.makedirs('templates', exist_ok=True)
     
     with open('templates/index.html', 'w') as f:
-        f.write('''
-<!DOCTYPE html>
+        f.write('''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Write Eye: AI Content Generator (Hugging Face)</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Write Eye: AI Content Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             --primary: #6366f1;
@@ -141,7 +164,7 @@ def create_template_files():
         
         .card:hover {
             box-shadow: 0 15px 30px rgba(0, 0, 0, 0.08);
-            transform: translateY(-5px);
+            transform: translateY(-2px);
         }
         
         .card-header {
@@ -149,7 +172,6 @@ def create_template_files():
             color: white;
             border-bottom: none;
             padding: 1.5rem;
-            border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
         }
         
         .card-body {
@@ -176,14 +198,6 @@ def create_template_files():
             background-color: white;
         }
         
-        .form-control::placeholder {
-            color: #94a3b8;
-        }
-        
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-        
         .btn-primary {
             background-color: var(--primary);
             border-color: var(--primary);
@@ -193,15 +207,15 @@ def create_template_files():
             transition: var(--transition);
         }
         
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background-color: var(--primary-hover);
             border-color: var(--primary-hover);
             transform: translateY(-2px);
         }
         
-        .btn-outline-light {
-            border-radius: 6px;
-            font-weight: 500;
+        .btn-primary:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
         }
         
         #result {
@@ -213,21 +227,21 @@ def create_template_files():
             border-radius: 8px;
             font-size: 0.95rem;
             line-height: 1.6;
-        }
-        
-        .result-card {
-            transition: var(--transition);
-        }
-        
-        .option-icon {
-            margin-right: 0.5rem;
-            color: var(--primary);
+            border: 1px solid #e2e8f0;
         }
         
         .spinner-border {
             color: var(--primary) !important;
-            width: 3rem;
-            height: 3rem;
+            width: 2rem;
+            height: 2rem;
+        }
+        
+        .error-message {
+            background-color: #fef2f2;
+            color: #dc2626;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #fecaca;
         }
         
         .features-list {
@@ -261,19 +275,13 @@ def create_template_files():
             color: var(--secondary);
             font-size: 0.9rem;
         }
-        
-        @media (max-width: 768px) {
-            .card-body {
-                padding: 1.5rem;
-            }
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="app-header">
             <h1 class="app-title">Write Eye: AI Content Generator</h1>
-            <p class="app-subtitle">Create high-quality content in seconds with our Hugging Face powered AI</p>
+            <p class="app-subtitle">Create high-quality content in seconds with NVIDIA AI</p>
         </div>
         
         <div class="card">
@@ -282,22 +290,22 @@ def create_template_files():
             </div>
             <div class="card-body">
                 <form id="generatorForm">
-                    <div class="form-group">
+                    <div class="mb-3">
                         <label for="promptInput" class="form-label">What would you like to write about?</label>
                         <textarea class="form-control" id="promptInput" rows="3" placeholder="Describe your topic or provide specific details for better results..." required></textarea>
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-6 form-group">
+                        <div class="col-md-6 mb-3">
                             <label for="contentType" class="form-label">Content Type</label>
                             <select class="form-select" id="contentType">
-                                <option value="blog"><i class="fas fa-pencil"></i> Blog Post</option>
-                                <option value="social"><i class="fas fa-share-alt"></i> Social Media</option>
-                                <option value="email"><i class="fas fa-envelope"></i> Email</option>
-                                <option value="product"><i class="fas fa-tag"></i> Product Description</option>
+                                <option value="blog">Blog Post</option>
+                                <option value="social">Social Media</option>
+                                <option value="email">Email</option>
+                                <option value="product">Product Description</option>
                             </select>
                         </div>
-                        <div class="col-md-6 form-group">
+                        <div class="col-md-6 mb-3">
                             <label for="contentLength" class="form-label">Length</label>
                             <select class="form-select" id="contentLength">
                                 <option value="short">Short (~250 words)</option>
@@ -316,7 +324,13 @@ def create_template_files():
             </div>
         </div>
         
-        <div class="card result-card d-none" id="resultCard">
+        <div class="text-center my-4">
+            <div class="spinner-border d-none" role="status" id="loadingSpinner">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+        
+        <div class="card d-none" id="resultCard">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h3 class="mb-0 fs-4">Generated Content</h3>
                 <button class="btn btn-sm btn-outline-light" id="copyBtn">
@@ -325,12 +339,6 @@ def create_template_files():
             </div>
             <div class="card-body">
                 <div id="result"></div>
-            </div>
-        </div>
-        
-        <div class="text-center mt-4 mb-5">
-            <div class="spinner-border d-none" role="status" id="loadingSpinner">
-                <span class="visually-hidden">Loading...</span>
             </div>
         </div>
         
@@ -343,7 +351,7 @@ def create_template_files():
             <div class="feature-item">
                 <i class="fas fa-robot feature-icon"></i>
                 <h3 class="feature-title">AI Powered</h3>
-                <p class="feature-desc">Using cutting-edge language models</p>
+                <p class="feature-desc">Using NVIDIA's advanced language models</p>
             </div>
             <div class="feature-item">
                 <i class="fas fa-layer-group feature-icon"></i>
@@ -359,16 +367,24 @@ def create_template_files():
             const resultCard = document.getElementById('resultCard');
             const resultDiv = document.getElementById('result');
             const loadingSpinner = document.getElementById('loadingSpinner');
+            const generateBtn = document.getElementById('generateBtn');
             const copyBtn = document.getElementById('copyBtn');
             
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 
-                const prompt = document.getElementById('promptInput').value;
+                const prompt = document.getElementById('promptInput').value.trim();
+                if (!prompt) {
+                    alert('Please enter a topic or description');
+                    return;
+                }
+                
                 const contentType = document.getElementById('contentType').value;
                 const length = document.getElementById('contentLength').value;
                 
-                // Show loading indicator
+                // Show loading state
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
                 loadingSpinner.classList.remove('d-none');
                 resultCard.classList.add('d-none');
                 
@@ -386,22 +402,30 @@ def create_template_files():
                 })
                 .then(response => response.json())
                 .then(data => {
-                    // Hide loading indicator
+                    // Reset button state
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = '<i class="fas fa-magic me-2"></i> Generate Content';
                     loadingSpinner.classList.add('d-none');
                     
                     if (data.error) {
-                        alert('Error: ' + data.error);
+                        resultDiv.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-triangle me-2"></i>${data.error}</div>`;
+                        resultCard.classList.remove('d-none');
                         return;
                     }
                     
-                    // Display the result with animation
+                    // Display the result
                     resultDiv.textContent = data.content;
                     resultCard.classList.remove('d-none');
                     resultCard.scrollIntoView({ behavior: 'smooth' });
                 })
                 .catch(error => {
+                    // Reset button state
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = '<i class="fas fa-magic me-2"></i> Generate Content';
                     loadingSpinner.classList.add('d-none');
-                    alert('Error: ' + error);
+                    
+                    resultDiv.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-triangle me-2"></i>Network error: ${error.message}</div>`;
+                    resultCard.classList.remove('d-none');
                 });
             });
             
@@ -412,8 +436,12 @@ def create_template_files():
                     .then(() => {
                         const originalHTML = copyBtn.innerHTML;
                         copyBtn.innerHTML = '<i class="fas fa-check me-1"></i> Copied!';
+                        copyBtn.classList.remove('btn-outline-light');
+                        copyBtn.classList.add('btn-success');
                         setTimeout(() => {
                             copyBtn.innerHTML = originalHTML;
+                            copyBtn.classList.remove('btn-success');
+                            copyBtn.classList.add('btn-outline-light');
                         }, 2000);
                     })
                     .catch(err => {
@@ -423,11 +451,11 @@ def create_template_files():
         });
     </script>
 </body>
-</html>
-        ''')
+</html>''')
 
 if __name__ == '__main__':
     create_template_files()
     print("Template files created successfully!")
-    print("Hugging Face API token is set and ready to use!")
-    app.run(debug=True)
+    print("Flask app starting...")
+    print("Visit http://127.0.0.1:5000 to access the app")
+    app.run(debug=True, host='0.0.0.0', port=5000)
